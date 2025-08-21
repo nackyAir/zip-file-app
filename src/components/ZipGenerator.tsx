@@ -68,7 +68,7 @@ export default function ZipGenerator() {
       for (const file of files) {
         const reader = new zip.BlobReader(file);
         await zipWriter.add(file.name, reader, {
-          onprogress: (current, total) => {
+          onprogress: async (current, total) => {
             const fileProgress = (current / total) * 100;
             const overallProgress = ((processedFiles + fileProgress / 100) / totalFiles) * 100;
             setProgress(Math.round(overallProgress));
