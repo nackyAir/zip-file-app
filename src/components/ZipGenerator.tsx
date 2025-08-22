@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
 import * as zip from "@zip.js/zip.js";
 import { saveAs } from "file-saver";
+import React, { useCallback, useState } from "react";
+import { useDropzone } from "react-dropzone";
 
 export default function ZipGenerator() {
   const [files, setFiles] = useState<File[]>([]);
@@ -12,6 +12,8 @@ export default function ZipGenerator() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordLength, setPasswordLength] = useState(12);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
@@ -26,9 +28,11 @@ export default function ZipGenerator() {
     setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
   };
 
-  const getPasswordStrength = (pwd: string): { level: string; color: string } => {
+  const getPasswordStrength = (
+    pwd: string,
+  ): { level: string; color: string } => {
     if (!pwd) return { level: "", color: "" };
-    
+
     let strength = 0;
     if (pwd.length >= 8) strength++;
     if (pwd.length >= 12) strength++;
@@ -39,6 +43,41 @@ export default function ZipGenerator() {
     if (strength <= 1) return { level: "弱い", color: "text-red-500" };
     if (strength <= 3) return { level: "普通", color: "text-yellow-500" };
     return { level: "強い", color: "text-green-500" };
+  };
+
+  const generatePassword = (length: number = 12): string => {
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const numbers = "0123456789";
+    const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+    const allChars = uppercase + lowercase + numbers + symbols;
+
+    let newPassword = "";
+
+    // 各種類の文字を最低1つずつ含める
+    newPassword += uppercase[Math.floor(Math.random() * uppercase.length)];
+    newPassword += lowercase[Math.floor(Math.random() * lowercase.length)];
+    newPassword += numbers[Math.floor(Math.random() * numbers.length)];
+    newPassword += symbols[Math.floor(Math.random() * symbols.length)];
+
+    // 残りの文字をランダムに追加
+    for (let i = 4; i < length; i++) {
+      newPassword += allChars[Math.floor(Math.random() * allChars.length)];
+    }
+
+    // パスワードをシャッフル
+    return newPassword
+      .split("")
+      .sort(() => Math.random() - 0.5)
+      .join("");
+  };
+
+  const handleGeneratePassword = () => {
+    const newPassword = generatePassword(passwordLength);
+    setPassword(newPassword);
+    setConfirmPassword(newPassword);
+    setShowConfirmPassword(true);
   };
 
   const generateZip = async () => {
@@ -70,7 +109,8 @@ export default function ZipGenerator() {
         await zipWriter.add(file.name, reader, {
           onprogress: async (current, total) => {
             const fileProgress = (current / total) * 100;
-            const overallProgress = ((processedFiles + fileProgress / 100) / totalFiles) * 100;
+            const overallProgress =
+              ((processedFiles + fileProgress / 100) / totalFiles) * 100;
             setProgress(Math.round(overallProgress));
           },
         });
@@ -79,10 +119,10 @@ export default function ZipGenerator() {
 
       const blob = await zipWriter.close();
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const fileName = password 
+      const fileName = password
         ? `encrypted_archive_${timestamp}.zip`
         : `archive_${timestamp}.zip`;
-      
+
       saveAs(blob, fileName);
 
       // Reset form
@@ -109,7 +149,7 @@ export default function ZipGenerator() {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`;
+    return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`;
   };
 
   const passwordStrength = getPasswordStrength(password);
@@ -211,22 +251,116 @@ export default function ZipGenerator() {
           <label htmlFor="password" className="block text-sm font-medium mb-2">
             パスワード (オプション)
           </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setShowConfirmPassword(e.target.value.length > 0);
-            }}
-            placeholder="ZIPファイルのパスワードを入力"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800"
-          />
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setShowConfirmPassword(e.target.value.length > 0);
+              }}
+              placeholder="ZIPファイルのパスワードを入力"
+              className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800"
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                aria-label={
+                  showPassword ? "パスワードを隠す" : "パスワードを表示"
+                }
+              >
+                {showPassword ? (
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleGeneratePassword}
+                className="p-1.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                aria-label="パスワードを自動生成"
+                title="パスワードを自動生成"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
           {password && (
             <p className={`text-xs mt-1 ${passwordStrength.color}`}>
               パスワード強度: {passwordStrength.level}
             </p>
           )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="passwordLength"
+            className="block text-sm font-medium mb-2"
+          >
+            パスワード長さ: {passwordLength}文字
+          </label>
+          <input
+            id="passwordLength"
+            type="range"
+            min="8"
+            max="32"
+            value={passwordLength}
+            onChange={(e) => setPasswordLength(Number(e.target.value))}
+            className="w-full"
+          />
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>8文字</span>
+            <span>32文字</span>
+          </div>
         </div>
 
         {showConfirmPassword && (
@@ -239,7 +373,7 @@ export default function ZipGenerator() {
             </label>
             <input
               id="confirmPassword"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="パスワードを再入力"
@@ -271,7 +405,11 @@ export default function ZipGenerator() {
         <button
           type="button"
           onClick={generateZip}
-          disabled={files.length === 0 || isGenerating || (showConfirmPassword && password !== confirmPassword)}
+          disabled={
+            files.length === 0 ||
+            isGenerating ||
+            (showConfirmPassword && password !== confirmPassword)
+          }
           className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
         >
           {isGenerating ? `生成中... (${progress}%)` : "ZIPファイルを生成"}
@@ -280,7 +418,8 @@ export default function ZipGenerator() {
         {password && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
             <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              ⚠️ パスワードは安全な場所に保管してください。忘れた場合、ファイルを復元できません。
+              ⚠️
+              パスワードは安全な場所に保管してください。忘れた場合、ファイルを復元できません。
             </p>
           </div>
         )}
